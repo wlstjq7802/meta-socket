@@ -49,10 +49,6 @@ io.on('connection', (socket) => {
       console.log("err: "+errMsg);
     });
 
-    // 클라이언트로 userData 전송
-
-
-
   });
 
 
@@ -60,7 +56,7 @@ io.on('connection', (socket) => {
 });
 
 io.listen(8080, () => {
-  console.log('Connected at 8080');
+  console.log('Connected at 8080 Hi~~');
 });
 
 
