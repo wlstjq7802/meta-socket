@@ -1,12 +1,20 @@
 const app = require('express')();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const http = require('http');
+const server = http.Server(app);
+const io = require('socket.io')(server, {
+ cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+});
 const mdbConn = require('../db/mariaDBConn.js');
 
-var token;
 app.get('/', (req, res) => {
-    // token = req.query.token;
-    res.sendFile(__dirname + '/index.html');
+
+  console.log('user');
+      res.send("스열님")
+      // token = req.query.token;
+
 });
 
 
@@ -35,23 +43,24 @@ io.on('connection', (socket) => {
       console.log("email: "+rows.U_Email);
       console.log("name: "+rows.U_Name);
       io.emit('userData', rows.U_Name, rows.U_Email);
+
     })
     .catch((errMsg) => {
       console.log("err: "+errMsg);
     });
 
     // 클라이언트로 userData 전송
-    
+
 
 
   });
-  
-  
+
+
 
 });
 
 http.listen(8080, () => {
-  console.log('Connected at 3000');
+  console.log('Connected at 8080');
 });
 
 
