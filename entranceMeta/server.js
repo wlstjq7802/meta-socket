@@ -55,7 +55,7 @@ io.on('connection', (socket) => {
 
 });
 
-io.listen(8080, () => {
+server.listen(8080, () => {
   console.log('Connected at 8080 Hi~~');
 });
 
