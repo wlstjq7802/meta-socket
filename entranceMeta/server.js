@@ -9,15 +9,16 @@ const io = require('socket.io')(server, {
 });
 const mdbConn = require('../db/mariaDBConn.js');
 
+
+// get 요청
 app.get('/', (req, res) => {
 
   console.log('user');
-      res.send("스열님")
-      // token = req.query.token;
+      res.send("승열님")
 
 });
 
-
+// 클라이언트 접속 이벤트
 io.on('connection', (socket) => {
   console.log('a user connected');
 
@@ -28,16 +29,10 @@ io.on('connection', (socket) => {
 
     // json에서 값 파싱 및 decode
     var user_id = atob(payload.User_ID);
-    var user_name = atob(payload.U_Name);
-    var user_email = atob(payload.U_Email);
-
     console.log('User_ID: '+user_id);
-    // console.log('U_Name: '+user_name);
-    // console.log('U_Email: '+user_email);
-    // console.log('payload: '+payload["alg"]);
 
     // db에서 클라이언트 id로 사용자 정보(이름, email) 조회
-    mdbConn.getUserList(user_id)
+    mdbConn.getUserData(user_id)
     .then((rows) => {
       // var jsonObject = JSON.parse(rows);
       console.log("email: "+rows.U_Email);
@@ -51,12 +46,10 @@ io.on('connection', (socket) => {
 
   });
 
-
-
 }); 
 
 server.listen(8080, () => {
-  console.log('Connected at 8080 Hi123~~');
+  console.log('Connected at 8080');
 });
 
 

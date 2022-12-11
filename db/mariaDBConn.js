@@ -7,7 +7,7 @@ const pool = mariadb.createPool({
     connectionLimit: 5
 });
   
-async function GetUserList(user_id){
+async function GetUserData(user_id){
     let conn, rows;
     try{
         conn = await pool.getConnection();
@@ -22,7 +22,7 @@ async function GetUserList(user_id){
         return rows[0];
     }
 }
-//   
+
 module.exports = {
-    getUserList: GetUserList
+    getUserData: GetUserData
 }
