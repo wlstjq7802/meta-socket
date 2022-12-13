@@ -14,15 +14,19 @@ const mdbConn = require('../db/mariaDBConn.js');
 app.get('/', (req, res) => {
 
   console.log('user');
+
       res.send("승열님")
 
+
 });
+
 
 // 클라이언트 접속 이벤트
 io.on('connection', (socket) => {
   console.log('a user connected');
 
-  socket.on('joinMetaverse', (jsonData) => {
+
+  socket.on('joinMeta', (jsonData) => {
     var jwt = atob(jsonData);  // 토큰 base64 decode
     var jwtArr = jwt.split('.'); // payload 파싱
     var payload = JSON.parse(jwtArr[1]); // json으로 변환
@@ -37,23 +41,32 @@ io.on('connection', (socket) => {
       // var jsonObject = JSON.parse(rows);
       console.log("email: "+rows.U_Email);
       console.log("name: "+rows.U_Name);
-      io.emit('userData', rows.U_Name, rows.U_Email);
+      socket.emit('succMeta', user_id);
 
     })
     .catch((errMsg) => {
+      socketa.emit('errorMsg', errMsg);
       console.log("err: "+errMsg);
     });
 
   });
 
-}); 
+
+
+  socket.on('movedUser', (x, y, d) => {
+        console.log("캐릭터이동: "+x+y+d);
+        socket.emit('movedUser', x, y, d);
+  });
+
+
+  socket.on('disconnect', async () => {
+        socket.emit('exitUser', user_id)
+        console.log('user disconnected');
+  });
+
+});
 
 server.listen(8080, () => {
   console.log('Connected at 8080');
 });
-
-
-
-
-
 

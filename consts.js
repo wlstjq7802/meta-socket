@@ -1,7 +1,7 @@
 module.exports = {
-    DBHost: '3.35.167.92',
+    DBHost: 'hs-api-db.csis3ho8an2b.ap-northeast-2.rds.amazonaws.com',
     DBPort: '3306',
-    DBUser: 'hong',
-    DBPass: '1234',
+    DBUser: 'hs_api_admin',
+    DBPass: 'xodml12!',
     connectionLimit: 5
 }
