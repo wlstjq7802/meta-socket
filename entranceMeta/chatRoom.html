@@ -21,11 +21,17 @@
         <div class="card">
           <div class="card-header">
             namespace1
-            <button onclick="enterRoom1()">소켓 연결</button>
+            <button onclick="enterRoom1(110)">110소켓 연결</button>
+            <button onclick="enterRoom1(92)">92소켓 연결</button>
+            <button id="enterChatRoom">채팅방 입장</button>
+            <button id="exitChatRoom">채팅방 퇴장</button>
+            <button id="getUserCount">룸에 있는 사용자 수 확인</button>
+            <input type="text" class="form-control" id="inputChatRoom" autocomplete="off" />
+            <br>
             <button id="paypal">paypal 링크</button>
-            <button id="order">수강 신청</button>
+            <button id="order">수강 신청</button><br>
             <button id="accept">수강 승인</button>
-            <button id="cancel">수강 취소</button>
+            <button id="cancel">수강 취소</button><br>
             <button id="exit">소켓 연결 종료</button>
           </div>
           <div class="card-body">
@@ -61,21 +67,26 @@
         const orderBtn = document.getElementById("order");
         const acceptBtn = document.getElementById("accept");
         const cancelBtn = document.getElementById("cancel");
+        const inputChatRoom = document.getElementById("inputChatRoom");
+        const enterChatRoomBtn = document.getElementById("enterChatRoom");
+        const exitChatRoomBtn = document.getElementById("exitChatRoom");
+        const getUserCountBtn = document.getElementById("getUserCount");
         
         // student = 320
         // teacher = 324
-        const sender = 320;
-        const receiver = 324;
-        let chatRoom = 53;
-        let = teacher_id=324;
-        let = student_id=320;
-        let = class_id= 175;
-        let = class_regist_id = 270;
-        const jwt = "eyJhbGciOiJzaGEyNTYiLCJ0eXAiOiJKV1QifS57ImV4cCI6MTY3MDkyNDAwMiwiaWF0IjoxNjcwOTAyNDAyLCJVc2VyX0lEIjoiTXpJMCIsIlVfTmFtZSI6IjdabU43WU9jN0oyWSIsIlVfRW1haWwiOiJaMmhrZUc5a2JXeEFibUYyWlhJdVkyOXQiLCJUaW1lWm9uZSI6IkxURXkifS4xYmQ4OWM0ZDJkMjYzNzkzOTFkYTc3M2I5NDJmN2ExMzI3Y2U4NGE1YzJlZjIxNjJiOTQ0ZDRhYWNiMTM1MzIw";
+        let sender;
+        let receiver;
+        let chatRoom = null;
+        let teacher_id=92;
+        let student_id=110;
+        let class_id= 175;
+        let class_regist_id = 270;
+        const jwt110 = "eyJhbGciOiJzaGEyNTYiLCJ0eXAiOiJKV1QifS57IlVzZXJfSUQiOiJNVEV3IiwiVV9OYW1lIjoiYUc5dVp6UT0iLCJVX0VtYWlsIjoiYUc5dVp6UkFibUYyWlhJdVkyOXQifS4yN2Y0Nzg5NjczYjFlNWRkYzZmNzRhZTI2NDRmNDQ4YmUzNzhkZmNjZmI0YzNmNTM3MzEyNTAzNTMzOTBkYjJi";
+        const jwt92 = "eyJhbGciOiJzaGEyNTYiLCJ0eXAiOiJKV1QifS57IlVzZXJfSUQiOiJPVEk9IiwiVV9OYW1lIjoiN0o2bDdLZUU3SVNjIiwiVV9FbWFpbCI6ImFtRnVaMEJ1WVhabGNpNWpiMjA9In0uNmYzNWU0YTJiMDM1ODA2NWVmZmFiODc5YTZkNWNhOTA3ZjlhOTIxZDE0M2NjNWViYzZiOTQxYTg4ZTdmYmFmMQ==";
 
 
       // Room1입장 버튼`
-    function enterRoom1(){
+    function enterRoom1(user){
 
         // webchatting이라는 namespace로 연결
         const socket = io.connect("http://localhost:8080/webChatting");
@@ -83,7 +94,16 @@
       
 
         // enter라는 이벤트에 room1이라는 매개변수를 담아 이벤트 발신 
-        socket.emit('enterWhebChat', jwt);
+        if(parseInt(user, 10) == 110){
+            socket.emit('enter_web_chat', jwt110);
+            sender = 110;
+            receiver = 92;
+        } else{
+            socket.emit('enter_web_chat', jwt92);
+            sender = 92;
+            receiver = 110;
+        }
+        
       
         // enter라는 이벤트 수신할 경우 res로 받은 text를 <li> 태그에 담아서 <ul> 태그에 추가
         //nter', (res) => {
@@ -95,7 +115,7 @@
         $('#msg-send').click(() => {
             socket.emit('send_text_msg', chatRoom, $('#m').val(), sender, receiver);
             $('#m').val('');
-            return false; 
+            return false;
         });
 
 
@@ -112,12 +132,15 @@
                 console.log(`msg_date: ${msg_date}`);
 
                 $('#messages').prepend($('<li>').text(sender_name+": "+chat_msg));
-                socket.emit('read_msg', chat_room_id, sender_id);
+                if(sender != sender_id){
+                  socket.emit('read_msg', chat_room_id, sender_id);
+                }
+                
             });
 
 
             socket.on('receive_paypal_msg', (chat_room_id, class_register_id, class_name, teacher_name, 
-                        teacher_img, paypal_link, msg_date, teacher_id) => {
+                        teacher_img, paypal_link, msg_date, teacher_id, msg_id) => {
                 console.log("receive_text_msg: ");
                 console.log(`chat_room_id: ${chat_room_id}`);
                 console.log(`class_register_id: ${class_register_id}`);
@@ -126,6 +149,8 @@
                 console.log(`teacher_img: ${teacher_img}`);
                 console.log(`paypal_link: ${paypal_link}`);
                 console.log(`msg_date: ${msg_date}`);
+                console.log(`teacher_id: ${teacher_id}`);
+                console.log(`msg_id: ${msg_id}`);
 
                 $('#messages').prepend($('<li>').text(teacher_name+": "+paypal_link));
                 socket.emit('read_msg', chat_room_id, teacher_id);
@@ -133,7 +158,7 @@
 
 
             socket.on('request_class', (chat_room_id, class_register_id, class_name, 
-                      teacher_name, teacher_img, msg_date, student_id) => {
+                      teacher_name, teacher_img, msg_date, student_id, teacher_id, msg_id) => {
                 console.log("request_class: ");
                 console.log(`chat_room_id: ${chat_room_id}`);
                 console.log(`class_register_id: ${class_register_id}`);
@@ -141,6 +166,8 @@
                 console.log(`teacher_name: ${teacher_name}`);
                 console.log(`teacher_img: ${teacher_img}`);
                 console.log(`msg_date: ${msg_date}`);
+                console.log(`student_id: ${student_id}`);
+                console.log(`msg_id: ${msg_id}`);
 
                 $('#messages').prepend($('<li>').text(student_id+": 수강신청"));
                 socket.emit('read_msg', chat_room_id, student_id);
@@ -148,7 +175,7 @@
 
 
             socket.on('acceptance_class', (chat_room_id, class_register_id, class_name, 
-                      teacher_name, teacher_img, msg_date, student_id) => {
+                      teacher_name, teacher_img, msg_date, student_id, teacher_id, msg_id) => {
                 console.log("acceptance_class: ");
                 console.log(`chat_room_id: ${chat_room_id}`);
                 console.log(`class_register_id: ${class_register_id}`);
@@ -156,6 +183,8 @@
                 console.log(`teacher_name: ${teacher_name}`);
                 console.log(`teacher_img: ${teacher_img}`);
                 console.log(`msg_date: ${msg_date}`);
+                console.log(`student_id: ${student_id}`);
+                console.log(`msg_id: ${msg_id}`);
 
                 $('#messages').prepend($('<li>').text(student_id+": 수강승인"));
                 socket.emit('read_msg', chat_room_id, student_id);
@@ -163,7 +192,7 @@
 
 
             socket.on('cancel_class', (chat_room_id, class_register_id, class_name, 
-                      teacher_name, teacher_img, msg_date, student_id) => {
+                      teacher_name, teacher_img, msg_date, sender_id, msg_id) => {
                 console.log("cancel_class: ");
                 console.log(`chat_room_id: ${chat_room_id}`);
                 console.log(`class_register_id: ${class_register_id}`);
@@ -171,15 +200,17 @@
                 console.log(`teacher_name: ${teacher_name}`);
                 console.log(`teacher_img: ${teacher_img}`);
                 console.log(`msg_date: ${msg_date}`);
+                console.log(`sender_id: ${sender_id}`);
+                console.log(`msg_id: ${msg_id}`);
 
-                $('#messages').prepend($('<li>').text(student_id+": 수강 취소"));
-                socket.emit('read_msg', chat_room_id, student_id);
+                $('#messages').prepend($('<li>').text(sender_id+": 수강 취소"));
+                socket.emit('read_msg', chat_room_id, sender_id);
             });
 
 
             // paypal
             paypalBtn.addEventListener("click", function() {
-                socket.emit('send_paypal_msg', student_id, teacher_id, class_id, class_regist_id);
+                socket.emit('send_paypal_msg', student_id, teacher_id, class_id, class_regist_id, "payment_link1");
             });
 
             // 수강 신청
@@ -197,6 +228,22 @@
                 socket.emit('cancel_class', student_id, teacher_id, class_id, class_regist_id, sender);
             });
 
+            // 채팅방 입장
+            enterChatRoomBtn.addEventListener("click", function() {
+                socket.emit('enter_chat_room', $('#inputChatRoom').val(), user);
+            });
+
+
+            // 채팅방 퇴장
+            exitChatRoomBtn.addEventListener("click", function() {
+                socket.emit('exit_chat_room', $('#inputChatRoom').val(), sender);
+            });
+
+            getUserCountBtn.addEventListener("click", function() {
+                socket.emit('get_users_in_user', "webChatting", 97);
+            });
+
+            
 
             // 소켓 연결 종료
             exitBtn.addEventListener("click", function() {

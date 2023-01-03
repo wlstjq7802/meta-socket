@@ -27,9 +27,9 @@ const ST = io.of('/STUDY'); // 수업 메타버스
 
 
 // 라우터 
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/chatRoom.html');
-});
+// app.get('/', (req, res) => {
+//   res.sendFile(__dirname + '/chatRoom.html');
+// });
 
 
 
@@ -41,7 +41,7 @@ webChatting.on('connection', (socket)=>{
 
 
 
-console.log("webChatting에 클라이언트 입장");
+  console.log("webChatting에 클라이언트 입장");
 
 
 // 채팅방 입장 이벤트
@@ -69,14 +69,12 @@ socket.on('enter_chat_room', (chat_room_id, user_id) => {
 });
 
 
+
 // 사용자 메타버스 입장 수신
 socket.on('enter_web_chat', (jwt) => {
     // console.log(`${jwt}님이 입장하였습니다.`);
     console.log(`web 채팅 입장 ------------------------------------`);
-    console.log("jwt: "+jwt);
-    let userData = jwtUtil.decodeJWT(jwt);
-    let user_id = userData.user_id;
-    socket.user_name = userData.user_name;
+    let user_id = jwtUtil.decodeJWT(jwt);
 
     if(user_id != -1){
       console.log(`복호화환 user_id: ${user_id}`);
@@ -128,46 +126,54 @@ socket.on('send_text_msg', (chat_room_id, chat_msg, sender_id, receiver_id) => {
   console.log("채팅 발신 ------------------------------------------");  
   console.log(`${chat_room_id} - ${sender_id}: ${chat_msg}`);
   let chatRoomId;
-  
+  chatRoomId = parseInt(chat_room_id, 10);
 
     // 1. chat_room_id 확인
-    if(chat_room_id == null){
+    if(chatRoomId == null){
 
       // 1-1.chat_room_id 조회
       mdbConn.getChatRoomId(sender_id, receiver_id)
       .then((resultObj) => {
         if(resultObj.result == 101 || resultObj.result == 102){
-          chatRoomId = parseInt(resultObj.chat_room_id, 10);
+          const chat_room_id = parseInt(resultObj.chat_room_id, 10);
+        } else{
+          console.log("채팅방 조회 결과: 에러~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        }
 
-          console.log("채팅방_id 조회: "+chatRoomId);
-            
+      }).catch((errMsg) => {
+          console.log(errMsg);
+      });
 
-          if(resultObj.result == 102){
-              // 채팅방이 생성된 경우 발신자, 수신자를 Room에 추가
-              socket.join(chatRoomId);
 
-              // 수신자 socket 확인하여 Room에 join
-              getSocketListInNamspace("/webChatting")
-              .then((socket_list) => {
-                for(socketIndex in socket_list){
-                  console.log(`socket.user_id: ${socket_list[socketIndex].user_id}   receiver_id: ${receiver_id} 입니다.`);
-                  if(socket_list[socketIndex].user_id == receiver_id){
-                    socket_list[socketIndex].join(chatRoomId);
-                    console.log(`${socket_list[socketIndex].user_id}를 ${chatRoomId}에 추가하였습니다.`);
-                    break;
-                  }
-                }
-              })
-              .catch((errMsg) => {
-                  console.log(errMsg);
-              });
-          }
+        // 1.채팅방 생성 - return값 chat_room_id
+        mdbConn.createChatRoom(sender_id, receiver_id)
+        .then((rows) => {
+          console.log("채팅방 요청 결과: "+rows);
+          chatRoomId = parseInt(rows.chat_room_id, 10);
+
+          // 채팅방이 생성된 경우 발신자, 수신자를 Room에 추가
+          socket.join(chatRoomId);
+
+          // 수신자 socket 확인하여 Room에 join
+          getSocketListInNamspace("/webChatting")
+          .then((socket_list) => {
+            for(socketIndex in socket_list){
+              console.log(`socket.user_id: ${socket_list[socketIndex].user_id}   receiver_id: ${receiver_id} 입니다.`);
+              if(socket_list[socketIndex].user_id == receiver_id){
+                socket_list[socketIndex].join(chatRoomId);
+                console.log(`${socket_list[socketIndex].user_id}를 ${chatRoomId}에 추가하였습니다.`);
+                break;
+              }
+            }
+          })
+          .catch((errMsg) => {
+              console.log(errMsg);
+          });
           
-          
 
-            // 2.메시지 저장
-            mdbConn.saveMsg(chatRoomId, chat_msg, sender_id, "text", 0)
-            .then((resultObj) => {
+          // 2.메시지 저장
+          mdbConn.saveMsg(chatRoomId, chat_msg, sender_id, "text", 0)
+          .then((resultObj) => {
 
             console.log("메시지 발신 이벤트 수신 결과1: "+ resultObj.result);
 
@@ -182,8 +188,7 @@ socket.on('send_text_msg', (chat_room_id, chat_msg, sender_id, receiver_id) => {
               // 3-1 상대방을 해당 채팅방에 join
 
               // 3-2.해당 채팅방의 모든 user에게 메시지 발신
-              webChatting.to(chatRoomId).emit('receive_text_msg', chatRoomId, chat_msg, sender_id, 
-              resultObj.name, resultObj.user_img, resultObj.msg_date);
+              webChatting.to(chatRoomId).emit('receive_text_msg', chatRoomId, chat_msg, sender_id, resultObj.name, resultObj.user_img, resultObj.msg_date);
               
               console.log("메시지 전송 함1");
             } else{
@@ -191,20 +196,13 @@ socket.on('send_text_msg', (chat_room_id, chat_msg, sender_id, receiver_id) => {
               // 3-2.발신자에게 발신 실패 메시지 발신
               
             }
-          }).catch((errMsg) => {
-            console.log(errMsg);
           });
-
-        } else{
-          console.log("채팅방 조회 결과: 에러~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        }
-
-      }).catch((errMsg) => {
+        })
+        .catch((errMsg) => {
           console.log(errMsg);
-      });
+        });
 
     } else{
-      chatRoomId = parseInt(chat_room_id, 10);
 
       // 메시지 저장
       mdbConn.saveMsg(chatRoomId, chat_msg, sender_id, "text", 0)
@@ -270,18 +268,11 @@ socket.on('send_paypal_msg', (student_id, teacher_id, class_id, class_register_i
                         const class_name = classNameObj.class_name;
                         const teacher_name = teacherDataObj.name;
                         const teacher_img = teacherDataObj.user_img;
-                        // const arr = str.split(",");
-                        let paypal_link = teacherDataObj.linkArr;
-                        // let payment_link_arr = Array.isArray(paypal_link);
-                        // let payment_link_arr = Object.assign({}, paypal_link);
+                        const paypal_link = teacherDataObj.linkArr;
                         const msg_date = resultObj.msg_date;
                         const msg_id = parseInt(resultObj.msg_id, 10);
                         class_register_id = parseInt(class_register_id, 10);
-                        console.log("payment_link: ");
-                        console.log(paypal_link);
-                        console.log("payment_link isArray(): "+ Array.isArray(paypal_link));
-                        paypal_link = "[ "+paypal_link;
-                        paypal_link = paypal_link+" ]";
+
                         // paypal msg 발신
                         // 필요한 데이터
                         // chat_room_id, class_register_id, class_name,
@@ -289,7 +280,7 @@ socket.on('send_paypal_msg', (student_id, teacher_id, class_id, class_register_i
                         // emit("receive_paypal_msg", );
                         webChatting.to(chat_room_id)
                         .emit('receive_paypal_msg', chat_room_id, class_register_id, class_name, teacher_name, 
-                        teacher_img, paypal_link, msg_date, student_id, teacher_id, msg_id);
+                        teacher_img, paypal_link, msg_date, teacher_id, msg_id);
                       }
                       
                     }).catch((errMsg) => {
@@ -364,7 +355,7 @@ socket.on('request_class', (student_id, teacher_id, class_id, class_register_id,
       }
 
 
-          // 회원명, img, 조회
+          // 강사명, img, 조회
           mdbConn.getUserData(teacher_id)
           .then((userDataObj) => {
             
@@ -400,7 +391,7 @@ socket.on('request_class', (student_id, teacher_id, class_id, class_register_id,
                         // teacher_name, teacher_img, msg_date
                         webChatting.to(chat_room_id)
                         .emit('request_class', chat_room_id, class_register_id, class_name, 
-                        socket.user_name, teacher_img, msg_date, student_id, teacher_id, msg_id);
+                        teacher_name, teacher_img, msg_date, student_id, teacher_id, msg_id);
                       }
                       
                     }).catch((errMsg) => {
@@ -525,7 +516,7 @@ socket.on('request_class', (student_id, teacher_id, class_id, class_register_id,
 
 
   // 수강 취소 이벤트 수신
-  socket.on('cancel_class', (student_id, teacher_id, class_id, class_register_id, chat_msg) => {
+  socket.on('cancel_class', (student_id, teacher_id, class_id, class_register_id, sender_id, chat_msg) => {
     console.log(`수강 취소------------------------------------`);
     console.log(`student_id: ${student_id}`);
     console.log(`teacher_id: ${teacher_id}`);
@@ -576,7 +567,7 @@ socket.on('request_class', (student_id, teacher_id, class_id, class_register_id,
 
                         webChatting.to(chat_room_id)
                         .emit('cancel_class', chat_room_id, class_register_id, class_name, 
-                        teacher_name, teacher_img, msg_date, student_id, teacher_id, msg_id);
+                        teacher_name, teacher_img, msg_date, sender_id, msg_id);
                       }
                       
                     }).catch((errMsg) => {
@@ -614,9 +605,6 @@ socket.on('request_class', (student_id, teacher_id, class_id, class_register_id,
   // 메시지 읽음 이벤트
 socket.on('read_msg', (chat_room_id, sender_id) => {
   console.log(`MSG 읽음 이벤트 ------------------------------------`);
-  console.log(`chat_room_id: `+chat_room_id);
-  console.log(`sender_id: `+sender_id);
-
     mdbConn.senderCheck(chat_room_id, sender_id)
     .then((result) => {
         // 3.메시지 저장 확인
@@ -642,50 +630,14 @@ socket.on('read_msg', (chat_room_id, sender_id) => {
 });
 
 
-  // 채팅방 나가기 이벤트
-  socket.on('exit_chat_room', (chat_room_id, sender_id) => {
-    console.log(`채팅방 나가기 이벤트 ------------------------------------`);
-    webChatUtil.updateExitUserId(chat_room_id, sender_id)
-      .then((result) => {
-          // 3.메시지 저장 확인
-          console.log("채팅방 나가기 이벤트 결과: "+ result);
-
-          // room에서 해당 사용자 제거 - leave()
-
-      })
-      .catch((errMsg) => {
-        console.log("채팅방 나가기 이벤트 에러: "+errMsg);
-      });
-  });
-
-
-  // 채팅방 나가기 이벤트
-  socket.on('get_users_in_user', (namespace, roomNum) => {
-    console.log(`채팅방 사용자수 확인 ------------------------------------`);
-
-    roomNum = parseInt(roomNum, 10);
-    getSocketsInRoom(namespace, roomNum)
-      .then((result) => {
-          // 3.메시지 저장 확인
-          console.log("채팅방 사요자수 확인 결과: "+ result);
-
-          // room에서 해당 사용자 제거 - leave()
-
-      })
-      .catch((errMsg) => {
-        console.log("채팅방 사요자수 확인 에러: "+errMsg);
-      });
-  });
-
-  
-
-
-
-
-
-
   socket.on('disconnect', async () => {
-      console.log(socket.user_id+"님이 퇴장합니다.---------------------------")
+      console.log(socket.user_id+"님이 퇴장합니다.")
+      for(let i=0; i < userJoinChatRoom.length; i++){
+
+        console.log("채팅방 퇴장: "+userJoinChatRoom[i]);
+        socket.leave(userJoinChatRoom[i]);
+      }
+      console.log('user disconnected');
   });
 
 
@@ -859,7 +811,6 @@ function getNickname(){
 
 
 
-
 async function getSocketListInNamspace(namespace){
     let result; 
 
@@ -878,25 +829,6 @@ async function getSocketListInNamspace(namespace){
     }
 }
 
-
-
-async function getSocketsInRoom(namespace, room){
-  let result; 
-
-  try{
-    result = await io.of(namespace).in(room).fetchSockets();
-
-    console.log(`현재 ${room}방에 참여중인 클라이언트 수: ${Object.values(result).length}명입니다.`);
-    
-  } catch(err){
-      console.log(err);
-      result = -1;
-      console.log("소켓 개수 확인 실패");
-  }
-  finally{
-      return Object.values(result).length;
-  }
-}
 
 
 
@@ -1023,8 +955,6 @@ socket.on("STOP", (coor) => {
             // 클라이언트 퇴장 이벤트 - 발신 
         socket.to(socket.room).emit("REMOVE", socket.id, socket.nickname);
     });
-
-
     
     // 클라이언트 위치 변경 메소드  
     // 클라이언트 정보와 변경된 위치 값을 받아 클라이언트 정보 변경 후 리턴
@@ -1059,10 +989,6 @@ function update(player1, direction, coor) {
   
 
 
-
-  io.use((err, req, res, next) => {
-      console.error("에러 미들웨어에서 처리 - "+err);
-  })
 
 
   

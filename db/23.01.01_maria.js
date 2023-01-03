@@ -1,10 +1,10 @@
 const mariadb = require('mariadb');
 const vals = require('../consts.js');
- 
+
 const pool = mariadb.createPool({
     host: vals.DBHost, port:vals.DBPort,
     user: vals.DBUser, password: vals.DBPass,
-    connectionLimit: 6
+    connectionLimit: 30
 });
 
 // 채팅방 생성
@@ -20,7 +20,7 @@ async function CreateChatRoom(sender_id, receiver_id){
         conn = await pool.getConnection();
         conn.query('USE HANGLE');
         rows = await conn.query(`INSERT INTO Chat_Room (chat_room_date, chat_room_name, chat_room_type, sender_id, receiver_id, sender_last_check, receiver_last_check) VALUES ( '${currentTime}', "undefiend", 0, ${sender_id}, ${receiver_id}, 0, 0);`);
-        
+
     }
     catch(err){
         console.log("에러!~: "+err);
@@ -28,8 +28,9 @@ async function CreateChatRoom(sender_id, receiver_id){
         throw err;
     }
     finally{
-        conn.release();
-            
+        if (conn) {
+            conn.end();
+
             let result;
             if(errorChk){
                 console.log("insertId "+rows["insertId"]);
@@ -39,10 +40,9 @@ async function CreateChatRoom(sender_id, receiver_id){
                 console.log("채팅방 생성 요청 에러남----");
                 return -1;
             }
-
+        };
     }
 }
-
 
 
 // 메시지 저장
@@ -50,14 +50,14 @@ async function SaveMsg(chat_room_id, chat_message, sender_id, msg_type, class_re
     let conn, rows, result;
     let currentTime = getNowTimestamp();
     console.log(`SaveMsg 시작 - chat_room_id: ${chat_room_id},  chat_message: ${chat_message}, sender_id: ${sender_id}, msg_type: ${msg_type}, class_register_id: ${class_register_id}`);
-    
+
     try{
         conn = await pool.getConnection();
         conn.query('USE HANGLE');
         rows = await conn.query(`INSERT INTO Chat_Message (chat_room_id, chat_message, chat_message_date, sender_id, read_check, message_type, class_register_id) VALUES (${chat_room_id}, '${chat_message}', '${currentTime}', ${sender_id}, 0, '${msg_type}', ${class_register_id})`);
         console.log("msg 저장 id:  "+rows["insertId"]);
         let msg_id = rows["insertId"];
-        
+
 
         await updateRecentMessage(chat_room_id, msg_id, chat_message, currentTime, sender_id)
         .then((rows) => {
@@ -76,13 +76,13 @@ async function SaveMsg(chat_room_id, chat_message, sender_id, msg_type, class_re
             result = -1;
         });
 
-        
+
         let resultObj = {};
         if(result == 0){
             // user_id로 정보 조회하여 object에 회원정보 저장하여 리턴
             // chat_room_id, chat_msg, sender_id,   sender_name, sender_img, msg_date
             rows = await conn.query('SELECT User.user_name, User_Detail.user_img FROM User LEFT JOIN User_Detail ON User.user_id = User_Detail.user_id  WHERE User.user_id = '+ sender_id);
-            
+
             if(rows.length){
                 console.log("조인 성공: ");
                 console.log("user_name: "+ rows[0]['user_name']);
@@ -91,6 +91,7 @@ async function SaveMsg(chat_room_id, chat_message, sender_id, msg_type, class_re
                 resultObj.user_img = rows[0]['user_img'];
                 resultObj.msg_date = currentTime;
                 resultObj.result = result;
+
                 resultObj.msg_id = msg_id;
                 console.log("SaveMsg() - msg_id: "+ msg_id);
 
@@ -109,10 +110,9 @@ async function SaveMsg(chat_room_id, chat_message, sender_id, msg_type, class_re
         errorChk = false;
         throw err;
     } finally{
-        // if (conn) {
-        //     conn.end();
-        // };
-        conn.release();
+        if (conn) {
+            conn.end();
+        };
     }
 }
 
@@ -123,7 +123,7 @@ async function SaveMsg(chat_room_id, chat_message, sender_id, msg_type, class_re
 async function updateRecentMessage(chat_room_id, msg_id, chat_msg, msg_date, sender_id){
     console.log("채팅방 업데이트 시작 - chat_room_id: "+chat_room_id);
     let conn, rows, rows2;
-    
+
     chat_room_id = parseInt(chat_room_id, 10);
     try {
 
@@ -141,8 +141,9 @@ async function updateRecentMessage(chat_room_id, msg_id, chat_msg, msg_date, sen
                 if(conn){
                     conn.end();
                 }
-                
 
+
+                
                 if(rows[0]["sender_id"] == sender_id){
 
                     console.log("발신자 sender_id");
@@ -167,59 +168,58 @@ async function updateRecentMessage(chat_room_id, msg_id, chat_msg, msg_date, sen
                         recent_msg_id = '${msg_id}',
                         receiver_last_check = ${msg_id}
                         WHERE chat_room_id = '${chat_room_id}'
-                    ;
-                    `);
+                        ;
+                        `);
+                    }
+    
+                    console.log("채팅방 업데이트 결과값:  "+rows2["warningStatus"]);
+                    const status = rows2["warningStatus"];
+                    if(status == 0){
+                        console.log("채팅방 업데이트 결과: true");
+                        return 0;
+                    } else{
+                        console.log("채팅방 업데이트 결과: false");
+                        return  -1;
+                    }
+    
                 }
-                
-                console.log("채팅방 업데이트 결과값:  "+rows2["warningStatus"]);
-                const status = rows2["warningStatus"];
-                if(status == 0){
-                    console.log("채팅방 업데이트 결과: true");
-                    return 0;
-                } else{
-                    console.log("채팅방 업데이트 결과: false");
-                    return  -1;
+                catch(err){
+                    console.log("채팅방 업데이트 에러1!~: "+err);
+                    throw err;
                 }
-        
+            } else{
+                console.log("채팅방 정보 조회 실패!~: ");
             }
-            catch(err){
-                console.log("채팅방 업데이트 에러1!~: "+err);
-                throw err;
-            }
-        } else{
-            console.log("채팅방 정보 조회 실패!~: ");
+    
+        } catch (error) {
+            console.log("채팅방 업데이트 에러2!~: "+error);
+        } finally{
+            if (conn) {
+                conn.end();
+            };
         }
-        
-    } catch (error) {
-        console.log("채팅방 업데이트 에러2!~: "+error);
-    } finally{
-        // if (conn) {
-        //     conn.end();
-        // };
-        conn.release();
     }
-}
+    
+    
+    // 채팅방의 sender인지 receiver인지 확인
+    async function SenderCheck(chatRoomId, sender_id){
+        console.log("LastCheck 업데이트 시작 - "+sender_id);
+        let conn, rows, errorChk = true;
+    
+        // sender 확인하여 sender인지 receiver인지 확인
+        try{
+            conn = await pool.getConnection();
+            conn.query('USE HANGLE');
+            rows = await conn.query(`SELECT * FROM Chat_Room where chat_room_id = ${chatRoomId}`);
+            const result = rows.length;
+            if(result > 0){
+                if(sender_id == rows[0]["sender_id"]){
+                    let result = {
+                        status : 101,
+                        recent_msg_id : rows[0]["recent_msg_id"]
+                    };
 
-
-// 채팅방의 sender인지 receiver인지 확인
-async function SenderCheck(chatRoomId, sender_id){
-    console.log("LastCheck 업데이트 시작 - "+sender_id);
-    let conn, rows, errorChk = true;
-
-    // sender 확인하여 sender인지 receiver인지 확인
-    try{
-        conn = await pool.getConnection();
-        conn.query('USE HANGLE');
-        rows = await conn.query(`SELECT * FROM Chat_Room where chat_room_id = ${chatRoomId}`);
-        const result = rows.length;
-        if(result > 0){
-            if(sender_id == rows[0]["sender_id"]){
-                let result = {
-                    status : 101,
-                    recent_msg_id : rows[0]["recent_msg_id"]
-                };
-
-                // receiver_last_check 변경
+                                    // receiver_last_check 변경
                 return result;
             } else if(sender_id == rows[0]["receiver_id"]){
                 let result = {
@@ -235,19 +235,19 @@ async function SenderCheck(chatRoomId, sender_id){
                 return result;
             }
         }
-        
+
     }
     catch(err){
         console.log("LastCheck 업데이트 에러!~: "+err);
         throw err;
     }
     finally{
-        // if (conn) {
-        //     conn.end();
-        // };
-        conn.release();
+        if (conn) {
+            conn.end();
+
+        };
     }
-    
+
 }
 
 
@@ -273,12 +273,13 @@ async function UpdateLastCheck(chat_room_id, sender_check){
             rows = await conn.query(`UPDATE Chat_Room SET 
                 sender_last_check = ${sender_check["recent_msg_id"]}
                 WHERE chat_room_id = ${chat_room_id}
-                ;`);
+                ;
+            `);
         } else{
             rows = {};
             rows["warningStatus"] = -1;
         }
-        
+
         console.log("LastCheck 업데이트 결과값: "+rows["warningStatus"]);
         const status = rows["warningStatus"];
         if(status == 0){
@@ -294,10 +295,10 @@ async function UpdateLastCheck(chat_room_id, sender_check){
         console.log("LastCheck 업데이트 에러!~: "+err);
         throw err;
     } finally{
-        // if(conn){
-        //     conn.end();
-        // }
-        conn.release();
+        if(conn){
+            conn.end();
+        }
+
     }
 }
 
@@ -310,7 +311,7 @@ async function GetUserData(user_id){
     try{
         conn = await pool.getConnection();
         conn.query('USE HANGLE');
-        rows = await conn.query('SELECT User.user_name, User_Detail.user_img,  FROM User LEFT JOIN User_Detail ON User.user_id = User_Detail.user_id  WHERE User.user_id = '+ user_id);
+        rows = await conn.query('SELECT User.user_name, User_Detail.user_img FROM User LEFT JOIN User_Detail ON User.user_id = User_Detail.user_id  WHERE User.user_id = '+ user_id);
         console.log(`GetUserData.length: ${rows.length}`);
 
         if(rows.length > 0){
@@ -319,15 +320,13 @@ async function GetUserData(user_id){
             userDataObj.user_img = rows[0]["user_img"];
         }
         
-        
     }
     catch(err){
         userDataObj.result = -1;
         throw "GetUserData-err: "+ err;
     }
     finally{
-        // if (conn) conn.end();
-        conn.release();
+        if (conn) conn.end();
         return userDataObj;
     }
 }
@@ -342,7 +341,8 @@ async function GetChatRoomId(user1_id, user2_id){
         conn.query('USE HANGLE');
         rows = await conn.query('SELECT chat_room_id FROM Chat_Room WHERE (sender_id = '+ user1_id+' OR receiver_id = '+user1_id+ ') AND (sender_id = '+ user2_id+' OR receiver_id = '+user2_id+')');
         if(rows.length > 0){
-            console.log("GetChatRoomId() - chat_room_id: "+rows[0]['chat_room_id']);
+            console.log("chat_room_id: "+rows[0]['chat_room_id']);
+
             chatRoomObj.result = 101;
             chatRoomObj.chat_room_id = rows[0]['chat_room_id'];
 
@@ -355,19 +355,17 @@ async function GetChatRoomId(user1_id, user2_id){
             } else{
                 chatRoomObj.result = -1;
             }
-            
+
         }
     }
     catch(err){
         throw "GetChatRoomId-err: "+ err;
     }
     finally{
-        // if (conn) conn.end();
-        conn.release();
+        if (conn) conn.end();
         return chatRoomObj;
     }
 }
-
 
 // 클래스_name 조회
 async function GetClassName(class_id){
@@ -390,12 +388,10 @@ async function GetClassName(class_id){
         throw "GetClassName-err: "+ err;
     }
     finally{
-        // if (conn) conn.end();
-        conn.release();
+        if (conn) conn.end();
         return classObj;
     }
 }
-
 
 // 강상 이름, 이미지 및 payment_link 조회
 async function GetTeacherData(user_id){
@@ -408,28 +404,26 @@ async function GetTeacherData(user_id){
         rows = await conn.query('SELECT Payment_Link.payment_link, User.user_name, User_Detail.user_img FROM Payment_Link LEFT JOIN User_Detail ON Payment_Link.user_id_payment = User_Detail.user_id LEFT JOIN User ON Payment_Link.user_id_payment = User.user_id WHERE Payment_Link.user_id_payment = '+ user_id);
         console.log(`GetTeacherData.length: ${rows.length}`);
 
-
         for(let i = 0; i < rows.length; i++){
-            // linkArr[i] = rows[i]["payment_link"];
-            linkArr.push(rows[i]["payment_link"]);
+            linkArr[i] = rows[i]["payment_link"];
         }
         teacherDataObj.result = 101;
         teacherDataObj.name = rows[0]["user_name"];
         teacherDataObj.user_img = rows[0]["user_img"];
         teacherDataObj.linkArr = linkArr;
-        console.log(`GetTeacherData.link:`);
-        console.log(linkArr);
     }
     catch(err){
         teacherDataObj.result = -1;
         throw "GetTeacherData-err: "+ err;
     }
     finally{
-        // if (conn) conn.end();
-        conn.release();
+        if (conn) conn.end();
         return teacherDataObj;
     }
 }
+
+
+
 
 
 
@@ -448,8 +442,8 @@ async function EnterUpdateLastCheck(chat_room_id, user_id){
             console.log("recent_msg_id 확인 성공");
             const recent_msg_id = rows[0]["recent_msg_id"];
             const sender_id = resultObj.sender_id = rows[0]["sender_id"];
-            
-            
+
+
             console.log("user_id: "+ user_id + " - sender_id: "+ sender_id+" - recent_msg_id: "+recent_msg_id);
 
             try {
@@ -491,12 +485,12 @@ async function EnterUpdateLastCheck(chat_room_id, user_id){
                 console.log("EnterUpdateLastCheck-err2"+ err);
                 throw "EnterUpdateLastCheck-err2: "+ err;
             }
-            
+
         } else{
             console.log("recent_msg_id 확인 실패");
             resultObj.result = -1;
         }
-        
+
     }
     catch(err){
         resultObj.result = -1;
@@ -504,17 +498,11 @@ async function EnterUpdateLastCheck(chat_room_id, user_id){
         throw "EnterUpdateLastCheck-err1: "+ err;
     }
     finally{
-        // if (conn) conn.end();
-
-        conn.release();
+        if (conn) conn.end();
         return resultObj;
     }
 
 }
-
-
-
-
 
 function getNowTimestamp(){
     let currentTime = new Date().toISOString();
@@ -536,3 +524,4 @@ module.exports = {
     getTeacherData: GetTeacherData,
     enterUpdateLastCheck: EnterUpdateLastCheck
 }
+
